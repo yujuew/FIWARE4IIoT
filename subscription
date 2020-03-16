@@ -1,0 +1,140 @@
+
+#####subscription worked!
+curl localhost:1026/v2/entities -s -S -H 'Content-Type: application/json' -d @- <<EOF
+{
+  "id": "robot01",
+  "type": "multisensor",
+  "temperature": {
+    "value": 23,
+    "type": "Float"
+  },
+  "clampPressure": {
+    "value": 720,
+    "type": "Integer"
+  }
+}
+EOF
+
+
+curl localhost:1026/v2/entities/robot01/attrs -s -S -H 'Content-Type: application/json' -X PATCH -d @- <<EOF
+{
+  "temperature": {
+    "value": 26.5,
+    "type": "Float"
+  },
+  "clampPressure": {
+    "value": 66,
+    "type": "Float"
+  }
+}
+EOF
+
+
+curl -v localhost:1026/v2/subscriptions -s -S -H 'Content-Type: application/json' -d @- <<EOF
+{
+  "description": "A subscription to get info about Room1",
+  "subject": {
+    "entities": [
+      {
+        "id": "robot01",
+        "type": "multisensor"
+      }
+    ],
+    "condition": {
+      "attrs": [
+        "clampPressure"
+      ]
+    }
+  },
+  "notification": {
+    "http": {
+      "url": "http://host.docker.internal:1028/accumulate"
+    },
+    "attrs": [
+      "clampPressure"
+    ]
+  },
+  "expires": "2040-01-01T14:00:00.00Z",
+  "throttling": 5
+}
+EOF
+
+
+
+
+
+
+
+
+curl -X GET http://localhost:1026/v2/entities/robot01
+
+
+
+curl -iX POST \
+  'http://localhost:1026/v2/registrations' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "description": "Random Weather Conditions",
+  "dataProvided": {
+    "entities": [
+      {
+        "id": "factory01",
+        "type": "factory"
+      }
+    ],
+    "attrs": [
+      "weather"
+    ]
+  },
+  "provider": {
+    "http": {
+      "url": "http://host.docker.internal:3000/random/weatherConditions"
+    }
+  }
+}'
+
+ curl -G -X GET \
+  'http://localhost:1026/v2/entities/factory01' \
+  -d 'type=factory'
+
+
+
+
+
+ ########### ------------------------------------------------------NGSI testcase 6---------------------------------------------------------------#######
+
+
+###provision devices new
+curl -iX POST http://localhost:1026/v2/entities -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -H "Content-Type: application/json" -H "Cache-Control: no-cache" \
+-d '
+{
+            "id": "urn:ngsi-ld:robot:1",
+            "type": "multiSensor",
+            "armRotation_x": {
+                "type": "Number",
+                "value": 39.2
+              },
+            "armRotation_y": {
+                "type": "Number",
+                "value": 5.8
+              },
+            "armRotation_z": {
+                "type": "Number",
+                "value": 75
+              },
+            "clampPressure": {
+                "type": "Number",
+                "value": 34
+              },
+            "powerConsumption": {
+                "type": "Number",
+                "value": 107
+              }
+} '
+
+curl -X GET \
+  http://localhost:1026/v2/entities/urn:ngsi-ld:robot:1\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+

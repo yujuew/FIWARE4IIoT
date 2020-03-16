@@ -1,0 +1,166 @@
+version: "3.7"
+#secrets:
+#   age_idm_auth:
+#      file: age_idm_auth.txt
+
+services:
+
+  ################ OPC UA ################
+  iotcarsrv:
+    hostname: iotcarsrv
+    image: iotagent4fiware/opcuacarsrv:1.3.4
+    networks:
+      - hostnet
+    ports:
+      - "5001:5001"
+
+  iotage:
+    hostname: iotage
+    image: iotagent4fiware/iotagent-opcua:1.3.4
+    networks:
+      - hostnet
+      - iotnet
+    ports:
+      - "4001:4001"
+      - "4081:8080"
+    depends_on:
+      - iotcarsrv
+      - iotmongo
+      - orion
+    volumes:
+      - ./AGECONF:/opt/iotagent-opcua/conf
+    command: /usr/bin/tail -f /var/log/lastlog
+
+  iotmongo:
+    hostname: iotmongo
+    image: mongo:3.6
+    networks:
+      - iotnet
+    volumes:
+      - iotmongo_data:/data/db
+      - iotmongo_conf:/data/configdb
+
+  ################ OCB ################
+
+  orion:
+    hostname: orion
+    image: fiware/orion:latest
+    networks:
+      - hostnet
+      - ocbnet
+    ports:
+      - "1026:1026"
+    depends_on:
+      - orion_mongo
+    #command: -dbhost mongo
+    entrypoint: /usr/bin/contextBroker -fg -ipv4 -multiservice -ngsiv1Autocast -statCounters -dbhost mongo -logForHumans -logLevel DEBUG -t 255
+
+  orion_mongo:
+    hostname: orion_mongo
+    image: mongo:3.6
+    networks:
+      ocbnet:
+        aliases:
+          - mongo
+    volumes:
+      - orion_mongo_data:/data/db
+      - orion_mongo_conf:/data/configdb
+    command: --nojournal
+
+
+  ################ API ################
+  tutorial:
+    image: fiware/tutorials.context-provider
+    hostname: context-provider
+    container_name: fiware-tutorial
+    networks:
+        - hostnet
+        - apinet
+    expose:
+        - "3000"
+    ports:
+        - "3000:3000"
+    depends_on:
+      - orion_mongo
+    environment:
+        - "DEBUG=tutorial:*"
+        - "PORT=3000"
+        - "CONTEXT_BROKER=http://orion:1026/v2"
+        - "OPENWEATHERMAP_KEY_ID=2ba286395aa76478d99f5b99ec16333c"
+        - "TWITTER_CONSUMER_KEY=gTdsx8AL1ftmutAq7UWhRctSG"
+        - "TWITTER_CONSUMER_SECRET=A94JmWNC8dZM6bBuYkHAfXr17oR7rFfEOABARy4bz3QKaAUEFf"
+
+  ################ JSON-MQTT ################
+  mosquitto:
+        image: eclipse-mosquitto
+        hostname: mosquitto
+        #container_name: mosquitto
+        networks:
+          - hostnet
+        expose:
+          - "1883"
+          - "9001"
+        ports:
+          - "1883:1883"
+          - "9001:9001"
+        volumes:
+        - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  iot-agent:
+        image: fiware/iotagent-json
+        hostname: iot-agent
+        #container_name: fiware-iot-agent
+        networks:
+          - jsonnet
+          - hostnet
+        depends_on:
+            - jsonmongo
+            - mosquitto
+            - orion
+        expose:
+            - "4041"
+            - "7896"
+        ports:
+            - "4041:4041"
+            - "7896:7896"
+        environment:
+            - "IOTA_CB_HOST=orion"
+            - "IOTA_CB_PORT=1026"
+            - "IOTA_NORTH_PORT=4041"
+            - "IOTA_REGISTRY_TYPE=jsonmongo"
+            - "IOTA_MONGO_HOST=jsonmongo"
+            - "IOTA_MONGO_PORT=27017"
+            - "IOTA_MONGO_DB=jsonmongo"
+            - "IOTA_HTTP_PORT=7896"
+            - "IOTA_PROVIDER_URL=http://iot-agent:4041"
+            - "IOTA_MQTT_HOST=mosquitto"
+            - "IOTA_MQTT_PORT=1883"
+       #    - "IOTA_REGISTRY_TYPE=mongodb"
+       #    - "IOTA_MONGO_HOST=mongodb"
+       #    - "IOTA_MONGO_DB=jsonmongo"
+       
+  jsonmongo:
+        hostname: jsonmongo
+        image: mongo:3.6
+        networks:
+            - jsonnet
+        volumes:
+            - jsonmongo_data:/data/db
+            - jsonmongo_conf:/data/configdb
+
+
+volumes:
+  iotmongo_data:
+  iotmongo_conf:
+  orion_mongo_data:
+  orion_mongo_conf:
+  jsonmongo_data:
+  jsonmongo_conf:
+
+networks:
+  hostnet:
+  iotnet:
+  jsonnet:
+  ocbnet:
+  apinet:
+

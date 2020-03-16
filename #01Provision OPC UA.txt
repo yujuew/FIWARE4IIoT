@@ -1,0 +1,96 @@
+# 01Provision OPC UA
+curl http://localhost:4001/iot/devices \
+     -H "fiware-service: factory" \
+     -H "fiware-servicepath: /demo" \
+     -H "Content-Type: application/json" \
+     -d @add_device.json
+
+## Get Device from OPC UA Agent
+ curl http://localhost:4001/iot/devices \
+     -H "fiware-service: factory" \
+     -H "fiware-servicepath: /demo" | python -mjson.tool
+
+## Get Device from OCB
+curl -X GET \
+http://localhost:1026/v2/entities/age01_Car \
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+## Update mesurements to the OCB
+ curl -X GET \
+http://localhost:1026/v2/entities/age01_Car/attrs/EngineStopped \
+-H 'fiware-service: factory' \
+-H 'fiware-servicepath: /demo'
+
+	curl -X PUT \
+  'http://localhost:1026/v2/entities/age01_Car/attrs/Stop?type=Device' \
+  -H 'content-type: application/json' \
+  -H 'fiware-service: factory' \
+  -H 'fiware-servicepath: /demo' \
+  -d '{
+  "value": true,
+  "type": "command"
+}'
+
+## Accelerate--command 
+
+curl -X PUT \
+  'http://localhost:1026/v2/entities/age01_Car/attrs/Accelerate?type=Device' \
+  -H 'content-type: application/json' \
+  -H 'fiware-service: factory' \
+  -H 'fiware-servicepath: /demo' \
+  -d '{
+  "value": [1],
+  "type": "command"
+}'
+
+		## Check command accelerate
+		 curl -X GET \
+		  http://localhost:1026/v2/entities/age01_Car/attrs/Speed \
+		  -H 'fiware-service: factory' \
+		  -H 'fiware-servicepath: /demo'
+
+## Subscribtion
+###!!first python run a accumulator-server.py in scripts
+#####run on ipv4
+./accumulator-server.py --port 1028 --url /accumulate --host localhost --pretty-print -v
+
+
+curl -v localhost:1026/v2/subscriptions -s -S  -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -H 'Content-Type: application/json' -d @- <<EOF
+{
+  "description": "A subscription to get info about Oxigen change",
+  "subject": {
+    "entities": [
+      {
+        "id": "age01_Car",
+        "type": "Device"
+      }
+    ],
+    "condition": {
+      "attrs": [
+        "Oxigen"
+      ]
+    }
+  },
+  "notification": {
+    "http": {
+      "url": "http://host.docker.nternal:1028/accumulate"
+    },
+    "attrs": [
+      "Oxigen"
+    ]
+  },
+  "expires": "2040-01-01T14:00:00.00Z",
+  "throttling": 5
+}
+EOF
+
+
+ curl -X GET \
+http://localhost:1026/v2/entities/age01_Car/attrs/Temperature \
+-H 'fiware-service: factory' \
+-H 'fiware-servicepath: /demo'
+
+
+

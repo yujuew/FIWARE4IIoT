@@ -1,0 +1,331 @@
+#provision services
+curl -X POST -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -H "Content-Type: application/json" -H "Cache-Control: no-cache" -d '{
+    "services": [
+      {
+          "resource": "/iot/json",
+          "apikey": "AAPP2019",
+          "type": "multiSensor"
+      }
+    ]
+}
+
+' 'http://localhost:4041/iot/services'
+
+
+#####subscribe
+mosquitto_sub -v -t /# | ts '%Y%m%d-%H:%M:%.S'
+
+####provision devices 
+curl -X POST -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -H "Content-Type: application/json" -H "Cache-Control: no-cache" -d '{
+    "devices": [
+        {
+            "device_id": "belt1",
+            "entity_name": "urn:ngsi-ld:belt:1",
+            "entity_type": "multiSensor",
+            "transport": "MQTT",
+            "commands": [
+                  { "name": "emergncyStop", 
+                    "type": "command"
+                  }
+            ],
+            "attributes": [
+              { 
+                "object_id": "s",
+                "name": "beltSpeed",
+                "type": "Number"
+              },
+              {
+                "object_id": "a",
+                "name": "angle",
+                "type": "Number"
+              },
+              {
+                "object_id": "w",
+                "name": "weight",
+                "type": "Number"
+              }
+            ]
+        }
+    ]
+}' 'http://localhost:4041/iot/devices'
+
+
+
+####GET device___worked!
+  curl -X GET \
+  http://localhost:1026/v2/entities/urn:ngsi-ld:belt:1\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+  curl -X GET \
+  http://localhost:1026/v2/entities \
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+
+#### Send measurements
+mosquitto_pub -t /AAPP2019/belt1/attrs -m '{"beltSpeed":5,"angle":0.2,"weight":71}'
+
+##### Update measurements
+mosquitto_pub -t /AAPP2019/belt1/attrs -m '{"beltSpeed":3,"angle":10,"weight":81}'
+
+
+####subscribe to receive
+mosquitto_sub -h localhost -t /AAPP2019/belt001/cmd 
+
+
+###3333send command
+
+curl -iX PATCH \
+  'http://localhost:1026/v2/entities/urn:ngsi-ld:belt:1/attrs' \
+  -H 'Content-Type: application/json' \
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" \
+  -d '{
+  "emergncyStop": {
+      "type": "command"
+  }
+}'
+ 
+curl -X GET \
+  http://localhost:1026/v2/entities/urn:ngsi-ld:belt:1 \
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+###subscribe
+###!!first python run a accumulator-server.py in scripts
+#####run on ipv4
+./accumulator-server.py --port 1028 --url /accumulate --host localhost --pretty-print -v
+
+
+ curl -v localhost:1026/v2/subscriptions -s -S -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -H "Content-Type: application/json" -d @- <<EOF
+{
+  "description": "A subscription to notify belt1 speed change",
+  "subject": {
+    "entities": [
+      {
+        "id": "urn:ngsi-ld:belt:1",
+        "type": "multiSensor"
+      }
+    ],
+    "condition": {
+      "attrs": [
+        "beltSpeed"
+      ]
+    }
+  },
+  "notification": {
+    "http": {
+      "url": "http://host.docker.internal:1028/accumulate"
+    },
+    "attrs": [
+      "beltSpeed"
+    ]
+  },
+  "expires": "2030-01-01T14:00:00.00Z",
+  "throttling": 5
+}
+EOF
+
+###Delete device at iotAgent
+curl -X DELETE \
+  http://localhost:4041/iot/devices/belt1\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+###Delete device at OCB---***the entry is "entityname"
+curl -X DELETE \
+  http://localhost:1026/v2/entities/urn:ngsi-ld:belt:1\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+ ########### ------------------------------------------------------seperation line---------------------------------------------------------------#######
+
+
+###provision devices new
+curl -X POST -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -H "Content-Type: application/json" -H "Cache-Control: no-cache" -d '{
+    "devices": [
+        {
+            "device_id": "robot01",
+            "entity_name": "RoboticArm",
+            "entity_type": "multiSensor",
+            "attributes": [
+              {
+                "name": "armRotation_x",
+                "type": "Number"
+              },
+              {
+                "name": "armRotation_y",
+                "type": "Number"
+              },
+              {
+                "name": "armRotation_z",
+                "type": "Number"
+              },
+               {
+                "name": "clampPressure",
+                "type": "Number"
+              },
+              {
+                "name": "powerConsumption",
+                "type": "Number"
+              }
+            ]
+        }
+    ]
+}
+
+' 'http://localhost:4041/iot/devices'
+
+
+
+#get device from the IoT Agent
+curl http://localhost:4041/iot/devices -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+#querycontext from the OCB
+curl -X POST -H "Content-Type: application/json" -H "Accept: application/json" -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -d '{
+    "entities": [
+        {
+            "isPattern": "false",
+            "id": "RoboticArm",
+            "type": "multiSensor"
+        }
+    ]
+}' 'http://localhost:1026/v1/queryContext' | python -mjson.tool
+
+
+  ####GET device___worked!
+  curl -X GET \
+  http://localhost:1026/v2/entities/RoboticArm\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+## GET Key value mode
+  curl -X GET \
+  http://localhost:1026/v2/entities?options=keyValues\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+ ?????
+###curl -X GET \
+  http://localhost:1026/v2/entities/RoboticArm?options=values&attrs=clampPressure,powerConsumption\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+###Delete device at iotAgent
+curl -X DELETE \
+  http://localhost:4041/iot/devices/robot01\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+###Delete device at OCB---***the entry is "entityname"
+curl -X DELETE \
+  http://localhost:1026/v2/entities/RoboticArm\
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+#### Send measurements
+mosquitto_pub -t /AAPP2019/robot01/attrs -m '{"armRotation_x":4,"armRotation_y":36,"armRotation_z":71,"clampPressure": "12.5","powerConsumption": "33"}'
+
+##### Update measurements
+mosquitto_pub -t /AAPP2019/robot01/attrs -m '{"armRotation_x":5,"armRotation_y":40,"armRotation_z":11,"clampPressure": "11.5","powerConsumption": "42"}'
+
+
+###subscribe
+###!!first python run a accumulator-server.py in scripts
+#####run on ipv4
+./accumulator-server.py --port 1028 --url /accumulate --host localhost --pretty-print -v
+
+
+ curl -v localhost:1026/v2/subscriptions -s -S -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -H "Content-Type: application/json" -d @- <<EOF
+{
+  "description": "A subscription to notify clampPressure change",
+  "subject": {
+    "entities": [
+      {
+        "id": "RoboticArm",
+        "type": "multiSensor"
+      }
+    ],
+    "condition": {
+      "attrs": [
+        "clampPressure"
+      ]
+    }
+  },
+  "notification": {
+    "http": {
+      "url": "http://host.docker.internal:1028/accumulate"
+    },
+    "attrs": [
+      "clampPressure"
+    ]
+  },
+  "expires": "2030-01-01T14:00:00.00Z",
+  "throttling": 5
+}
+EOF
+
+
+
+###command
+
+#xxxxprovision devices
+curl -X POST -H "Fiware-Service: factory" -H "Fiware-ServicePath: /demo" -H "Content-Type: application/json" -H "Cache-Control: no-cache" -d '{
+    "devices": [
+        {
+            "device_id": "Button",
+            "entity_name": "Button",
+            "entity_type": "multiSensor",
+            "transport": "MQTT",
+            "commands": [
+                  { "name": "on", "type": "command" },
+                  { "name": "off", "type": "command" }
+            ],
+            "attributes": [
+                  { "object_id": "t", "name": "Temperature", "type": "celsius" },
+                  { "object_id": "l", "name": "Luminosity", "type": "lumens" }
+            ]
+        }
+    ]
+}
+
+' 'http://localhost:4041/iot/devices'
+
+
+####subscribe to receive
+mosquitto_sub -h localhost -t /AAPP2019/Button/cmd 
+
+
+###send command
+
+curl -iX PATCH \
+  'http://localhost:1026/v2/entities/Button/attrs' \
+  -H 'Content-Type: application/json' \
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" \
+  -d '{
+  "on": {
+      "type" : "command",
+      "value" : "true "
+  }
+}'
+ 
+curl -X GET \
+  http://localhost:1026/v2/entities/Button \
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
+
+
+????
+curl -iX DELETE \
+  http://localhost:1026/v2/entities/Button \
+  -H "Fiware-Service: factory" \
+  -H "Fiware-ServicePath: /demo" | python -mjson.tool
