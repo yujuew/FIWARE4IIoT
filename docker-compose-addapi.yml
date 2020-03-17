@@ -86,9 +86,9 @@ services:
         - "DEBUG=tutorial:*"
         - "PORT=3000"
         - "CONTEXT_BROKER=http://orion:1026/v2"
-        - "OPENWEATHERMAP_KEY_ID=2ba286395aa76478d99f5b99ec16333c"
-        - "TWITTER_CONSUMER_KEY=gTdsx8AL1ftmutAq7UWhRctSG"
-        - "TWITTER_CONSUMER_SECRET=A94JmWNC8dZM6bBuYkHAfXr17oR7rFfEOABARy4bz3QKaAUEFf"
+        - "OPENWEATHERMAP_KEY_ID=<Your-Key>"
+        - "TWITTER_CONSUMER_KEY=<Your-Key>"
+        - "TWITTER_CONSUMER_SECRET=<Your-Secret>"
 
   ################ JSON-MQTT ################
   mosquitto:
